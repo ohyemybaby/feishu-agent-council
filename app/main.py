@@ -29,6 +29,19 @@ async def health() -> dict[str, Any]:
     }
 
 
+@app.get("/debug/config")
+async def debug_config() -> dict[str, Any]:
+    return {
+        "mock_providers": settings.mock_providers,
+        "feishu_dry_run": settings.feishu_dry_run,
+        "glm_configured": bool(settings.glm_api_key),
+        "deepseek_configured": bool(settings.deepseek_api_key),
+        "glm_model": settings.glm_model,
+        "deepseek_model": settings.deepseek_model,
+        "database_path": str(settings.database_path),
+    }
+
+
 @app.post("/ask")
 async def ask(request: AskRequest) -> dict[str, Any]:
     answer = await council.handle_question(request.question)
@@ -55,4 +68,3 @@ async def feishu_webhook(payload: dict[str, Any]) -> dict[str, Any]:
     )
     await feishu.send_text(incoming.chat_id, answer.to_feishu_text())
     return {"ok": True}
-

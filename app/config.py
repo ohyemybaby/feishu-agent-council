@@ -17,7 +17,8 @@ def _bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
-    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    normalized = value.strip().strip('"').strip("'").lower()
+    return normalized in {"1", "true", "yes", "y", "on"}
 
 
 @dataclass(frozen=True)

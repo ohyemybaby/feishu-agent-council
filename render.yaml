@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: feishu-agent-council
+    runtime: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MOCK_PROVIDERS
+        value: "true"
+      - key: FEISHU_DRY_RUN
+        value: "true"
+      - key: DATABASE_PATH
+        value: /tmp/agent_council.sqlite3
+      - key: DEFAULT_MAX_TOKENS
+        value: "900"
+      - key: DEEP_MAX_TOKENS
+        value: "1200"
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "60"
+

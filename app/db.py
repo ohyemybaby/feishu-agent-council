@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from app.schemas import CouncilAnswer, ModelRunResult
 
@@ -57,6 +58,23 @@ class Database:
                     quality_score real,
                     created_at text not null default current_timestamp,
                     foreign key(task_id) references tasks(id)
+                );
+
+                create table if not exists worker_tasks (
+                    id integer primary key autoincrement,
+                    feishu_chat_id text not null default '',
+                    feishu_message_id text not null default '',
+                    user_id text not null default '',
+                    prompt text not null,
+                    status text not null,
+                    result_text text not null default '',
+                    error_text text not null default '',
+                    attempts integer not null default 0,
+                    claimed_by text not null default '',
+                    claimed_at text,
+                    created_at text not null default current_timestamp,
+                    updated_at text not null default current_timestamp,
+                    completed_at text
                 );
                 """
             )
@@ -123,3 +141,87 @@ class Database:
                 ),
             )
 
+    def create_worker_task(
+        self,
+        feishu_chat_id: str,
+        feishu_message_id: str,
+        user_id: str,
+        prompt: str,
+    ) -> int:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                insert into worker_tasks (feishu_chat_id, feishu_message_id, user_id, prompt, status)
+                values (?, ?, ?, ?, 'pending')
+                """,
+                (feishu_chat_id, feishu_message_id, user_id, prompt),
+            )
+            return int(cursor.lastrowid)
+
+    def claim_worker_task(self, worker_id: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                select *
+                from worker_tasks
+                where status = 'pending'
+                   or (status = 'claimed' and datetime(claimed_at, '+15 minutes') < current_timestamp)
+                order by id
+                limit 1
+                """
+            ).fetchone()
+            if row is None:
+                return None
+
+            conn.execute(
+                """
+                update worker_tasks
+                set status = 'claimed',
+                    claimed_by = ?,
+                    claimed_at = current_timestamp,
+                    attempts = attempts + 1,
+                    updated_at = current_timestamp
+                where id = ?
+                """,
+                (worker_id, row["id"]),
+            )
+            updated = conn.execute("select * from worker_tasks where id = ?", (row["id"],)).fetchone()
+            return dict(updated) if updated is not None else None
+
+    def complete_worker_task(self, task_id: int, result_text: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                update worker_tasks
+                set status = 'completed',
+                    result_text = ?,
+                    error_text = '',
+                    updated_at = current_timestamp,
+                    completed_at = current_timestamp
+                where id = ?
+                """,
+                (result_text, task_id),
+            )
+            row = conn.execute("select * from worker_tasks where id = ?", (task_id,)).fetchone()
+            return dict(row) if row is not None else None
+
+    def fail_worker_task(self, task_id: int, error_text: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                update worker_tasks
+                set status = 'failed',
+                    error_text = ?,
+                    updated_at = current_timestamp,
+                    completed_at = current_timestamp
+                where id = ?
+                """,
+                (error_text, task_id),
+            )
+            row = conn.execute("select * from worker_tasks where id = ?", (task_id,)).fetchone()
+            return dict(row) if row is not None else None
+
+    def get_worker_task(self, task_id: int) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute("select * from worker_tasks where id = ?", (task_id,)).fetchone()
+            return dict(row) if row is not None else None

@@ -27,6 +27,8 @@ class Settings:
     app_port: int = int(os.getenv("APP_PORT", "8000"))
     database_path: Path = Path(os.getenv("DATABASE_PATH", "./data/agent_council.sqlite3"))
     mock_providers: bool = _bool_env("MOCK_PROVIDERS", True)
+    pc_worker_enabled: bool = _bool_env("PC_WORKER_ENABLED", False)
+    worker_token: str = os.getenv("WORKER_TOKEN", "")
 
     feishu_app_id: str = os.getenv("FEISHU_APP_ID", "")
     feishu_app_secret: str = os.getenv("FEISHU_APP_SECRET", "")

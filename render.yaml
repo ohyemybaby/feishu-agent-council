@@ -8,6 +8,10 @@ services:
     envVars:
       - key: MOCK_PROVIDERS
         value: "true"
+      - key: PC_WORKER_ENABLED
+        value: "false"
+      - key: WORKER_TOKEN
+        generateValue: true
       - key: FEISHU_DRY_RUN
         value: "true"
       - key: DATABASE_PATH
@@ -18,4 +22,3 @@ services:
         value: "1200"
       - key: REQUEST_TIMEOUT_SECONDS
         value: "60"
-

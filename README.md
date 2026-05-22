@@ -90,3 +90,11 @@ DEEPSEEK_API_KEY=
 - MVP does not execute local commands or modify files.
 - Phase B will add read-only computer/code diagnostics with explicit confirmation for risky actions.
 - Phase C will add CSV/Excel/Feishu Sheets analysis and forecasting.
+
+## PC Codex Worker Mode
+
+To route Feishu messages to a Codex CLI running on your PC instead of cloud model APIs, see:
+
+```text
+docs/pc-worker.md
+```

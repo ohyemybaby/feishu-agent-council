@@ -72,8 +72,6 @@ User task from Feishu:
         str(CODEX_WORKSPACE),
         "--sandbox",
         "workspace-write",
-        "--ask-for-approval",
-        "never",
         "--skip-git-repo-check",
         "--output-last-message",
         str(output_path),

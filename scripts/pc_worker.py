@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -14,6 +15,7 @@ WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 WORKER_ID = os.getenv("WORKER_ID", "pc-codex-worker")
 CODEX_WORKSPACE = Path(os.getenv("CODEX_WORKSPACE", os.getcwd()))
 CODEX_MODEL = os.getenv("CODEX_MODEL", "")
+CODEX_COMMAND = os.getenv("CODEX_COMMAND", "")
 CODEX_TIMEOUT_SECONDS = int(os.getenv("CODEX_TIMEOUT_SECONDS", "1800"))
 WORKER_POLL_SECONDS = int(os.getenv("WORKER_POLL_SECONDS", "8"))
 
@@ -62,8 +64,9 @@ User task from Feishu:
 {prompt}
 """
 
+    codex_command = resolve_codex_command()
     command = [
-        "codex",
+        codex_command,
         "exec",
         "--cd",
         str(CODEX_WORKSPACE),
@@ -97,8 +100,42 @@ User task from Feishu:
     return final_message or (completed.stdout or "").strip() or "Codex finished, but did not return a final message."
 
 
+def resolve_codex_command() -> str:
+    if CODEX_COMMAND:
+        command_path = Path(CODEX_COMMAND)
+        if command_path.exists():
+            return str(command_path)
+        found = shutil.which(CODEX_COMMAND)
+        if found:
+            return found
+        raise RuntimeError(f"CODEX_COMMAND not found: {CODEX_COMMAND}")
+
+    candidates = [
+        "codex.cmd",
+        "codex.exe",
+        "codex",
+    ]
+    for candidate in candidates:
+        found = shutil.which(candidate)
+        if found:
+            return found
+
+    common_paths = [
+        Path.home() / "AppData/Roaming/npm/codex.cmd",
+        Path.home() / "AppData/Roaming/npm/codex",
+    ]
+    for candidate in common_paths:
+        if candidate.exists():
+            return str(candidate)
+
+    raise RuntimeError(
+        "Codex CLI was not found. Set CODEX_COMMAND to the full path of codex.cmd or codex.exe."
+    )
+
+
 def main() -> None:
     print(f"PC worker started. server={SERVER_URL} workspace={CODEX_WORKSPACE}")
+    print(f"Codex command: {resolve_codex_command()}")
     while True:
         try:
             task = claim_task()

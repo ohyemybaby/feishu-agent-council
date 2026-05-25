@@ -45,6 +45,34 @@ python scripts/pc_worker.py
 
 Keep this terminal open. When a Feishu message arrives, Render queues it and this worker claims it.
 
+## 3.1 Use a Workspace Root with Multiple Projects
+
+To allow Codex to work on projects under one root directory, set:
+
+```powershell
+$env:CODEX_WORKSPACE_ROOT="D:\workspace"
+```
+
+Then start the worker:
+
+```powershell
+python scripts/pc_worker.py
+```
+
+From Feishu, select a project subdirectory:
+
+```text
+/project my-app 请阅读 README 并总结这个项目如何启动
+```
+
+This runs Codex inside:
+
+```text
+D:\workspace\my-app
+```
+
+Only relative project names under `D:\workspace` are allowed. Absolute paths and `..` path escapes are rejected.
+
 ## 4. Test from Feishu
 
 Send a private message to the bot:
@@ -70,4 +98,3 @@ The worker runs Codex with:
 ```
 
 It should only write inside `CODEX_WORKSPACE`. Do not point `CODEX_WORKSPACE` at sensitive folders for early testing.
-

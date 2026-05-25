@@ -14,6 +14,7 @@ SERVER_URL = os.getenv("WORKER_SERVER_URL", "https://feishu-agent-council.onrend
 WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 WORKER_ID = os.getenv("WORKER_ID", "pc-codex-worker")
 CODEX_WORKSPACE = Path(os.getenv("CODEX_WORKSPACE", os.getcwd()))
+CODEX_WORKSPACE_ROOT = os.getenv("CODEX_WORKSPACE_ROOT", "")
 CODEX_MODEL = os.getenv("CODEX_MODEL", "")
 CODEX_COMMAND = os.getenv("CODEX_COMMAND", "")
 CODEX_TIMEOUT_SECONDS = int(os.getenv("CODEX_TIMEOUT_SECONDS", "1800"))
@@ -48,7 +49,8 @@ def post_result(task_id: int, status: str, result: str = "", error: str = "") ->
 
 
 def run_codex(prompt: str) -> str:
-    CODEX_WORKSPACE.mkdir(parents=True, exist_ok=True)
+    workspace, cleaned_prompt = resolve_workspace(prompt)
+    workspace.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix=".txt") as output_file:
         output_path = Path(output_file.name)
 
@@ -63,7 +65,7 @@ def run_codex(prompt: str) -> str:
 - 完成后用简洁中文总结你实际做了什么，并给出相关文件路径。
 
 用户任务：
-{prompt}
+{cleaned_prompt}
 """
 
     codex_command = resolve_codex_command()
@@ -71,7 +73,7 @@ def run_codex(prompt: str) -> str:
         codex_command,
         "exec",
         "--cd",
-        str(CODEX_WORKSPACE),
+        str(workspace),
         "--sandbox",
         "workspace-write",
         "--skip-git-repo-check",
@@ -86,7 +88,7 @@ def run_codex(prompt: str) -> str:
 
     completed = subprocess.run(
         command,
-        cwd=CODEX_WORKSPACE,
+        cwd=workspace,
         text=True,
         encoding="utf-8",
         errors="replace",
@@ -103,6 +105,47 @@ def run_codex(prompt: str) -> str:
         raise RuntimeError(details[-4000:] or f"codex exited with status {completed.returncode}")
 
     return final_message or (completed.stdout or "").strip() or "Codex finished, but did not return a final message."
+
+
+def resolve_workspace(prompt: str) -> tuple[Path, str]:
+    base = workspace_base().resolve()
+    cleaned_prompt = prompt.strip()
+
+    project_prefixes = ["/project", "project:", "项目：", "项目:"]
+    selected_project = ""
+    for prefix in project_prefixes:
+        if cleaned_prompt.lower().startswith(prefix.lower()):
+            rest = cleaned_prompt[len(prefix) :].strip()
+            if rest:
+                parts = rest.split(maxsplit=1)
+                selected_project = parts[0].strip().strip('"').strip("'")
+                cleaned_prompt = parts[1].strip() if len(parts) > 1 else ""
+            break
+
+    if not selected_project:
+        return base, cleaned_prompt
+
+    if ":" in selected_project or selected_project.startswith(("\\", "/")):
+        raise RuntimeError("Project must be a relative directory under the allowed workspace root.")
+
+    candidate = (base / selected_project).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError:
+        raise RuntimeError("Project path escapes the allowed workspace root.")
+
+    if not candidate.exists():
+        raise RuntimeError(f"Project does not exist under workspace root: {selected_project}")
+    if not candidate.is_dir():
+        raise RuntimeError(f"Project is not a directory: {selected_project}")
+
+    return candidate, cleaned_prompt
+
+
+def workspace_base() -> Path:
+    if CODEX_WORKSPACE_ROOT:
+        return Path(CODEX_WORKSPACE_ROOT)
+    return CODEX_WORKSPACE
 
 
 def resolve_codex_command() -> str:
@@ -139,7 +182,9 @@ def resolve_codex_command() -> str:
 
 
 def main() -> None:
-    print(f"PC worker started. server={SERVER_URL} workspace={CODEX_WORKSPACE}")
+    print(f"PC worker started. server={SERVER_URL} workspace={workspace_base()}")
+    if CODEX_WORKSPACE_ROOT:
+        print("Project routing enabled. Use: /project <subdir> <task>")
     print(f"Codex command: {resolve_codex_command()}")
     while True:
         try:

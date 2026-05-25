@@ -52,15 +52,17 @@ def run_codex(prompt: str) -> str:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, suffix=".txt") as output_file:
         output_path = Path(output_file.name)
 
-    worker_prompt = f"""You are running on the user's PC as a Feishu-triggered Codex worker.
+    worker_prompt = f"""立即执行下面这个来自飞书的用户任务。不要只回复 Ready，不要只表示你已理解。
 
-Safety rules:
-- Work only inside the configured workspace unless the user explicitly asks otherwise.
-- Do not delete files, change system settings, install unknown scripts, push code, or expose secrets.
-- If the task is risky or underspecified, explain what you need instead of taking risky action.
-- End with a concise Chinese summary suitable for sending back to Feishu.
+当前工作目录就是允许操作的目录。你可以读取、创建和修改当前工作目录内的文件。
 
-User task from Feishu:
+安全规则：
+- 只在当前工作目录内工作，除非用户明确指定其他路径。
+- 不要删除文件、修改系统设置、安装未知脚本、推送代码或暴露密钥。
+- 如果任务有风险或信息不足，就说明原因和需要用户补充什么。
+- 完成后用简洁中文总结你实际做了什么，并给出相关文件路径。
+
+用户任务：
 {prompt}
 """
 
@@ -78,13 +80,18 @@ User task from Feishu:
     ]
     if CODEX_MODEL:
         command.extend(["--model", CODEX_MODEL])
-    command.append(worker_prompt)
+    command.append("-")
+
+    print("Running Codex command:", " ".join(command[:-1]), "<prompt>")
 
     completed = subprocess.run(
         command,
         cwd=CODEX_WORKSPACE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
+        input=worker_prompt,
         timeout=CODEX_TIMEOUT_SECONDS,
     )
 
